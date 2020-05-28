@@ -1,0 +1,6 @@
+.benchmarks
+.eggs
+.tox
+*.egg-info
+.idea
+__pycache__
