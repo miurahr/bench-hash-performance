@@ -179,8 +179,8 @@ Let's modify a first code;
 
 ::
 
--            m.update(salt + password + round.to_bytes(8, byteorder='little', signed=False))
-+            m.update(memoryview(salt + password + round.to_bytes(8, byteorder='little', signed=False)))
+    -            m.update(salt + password + round.to_bytes(8, byteorder='little', signed=False))
+    +            m.update(memoryview(salt + password + round.to_bytes(8, byteorder='little', signed=False)))
 
 Then we can see a result improve a performance on pypy3.
 
