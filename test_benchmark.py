@@ -64,28 +64,25 @@ def calculate_key3(password: bytes, cycles: int, salt: bytes, digest: str) -> by
         key = bytes(ba[:32])  # type: bytes
     else:
         cat_cycle = 6
-        rounds = 1 << cycles
         if cycles > cat_cycle:
-            concat = 1 << cat_cycle
+            rounds = 1 << cat_cycle
+            stages = 1 << (cycles - cat_cycle)
         else:
-            concat = 1 << cycles
+            rounds = 1 << cycles
+            stages = 1 << 0
         m = _hashlib.new(digest)
         saltpassword = salt + password
-        round = 0
+        s = 0  # type: int
         if platform.python_implementation() == "PyPy":
-            while round < rounds:
-                val = bytearray()
-                for _ in range(concat):
-                    val += saltpassword + round.to_bytes(8, byteorder='little', signed=False)
-                    round += 1
-                m.update(memoryview(val))
+            for _ in range(stages):
+                m.update(memoryview(b''.join([saltpassword + (s + i).to_bytes(8, byteorder='little', signed=False)
+                                              for i in range(rounds)])))
+                s += rounds
         else:
-            while round < rounds:
-                val = bytearray()
-                for _ in range(concat):
-                    val += saltpassword + round.to_bytes(8, byteorder='little', signed=False)
-                    round += 1
-                m.update(val)
+            for _ in range(stages):
+                m.update(b''.join([saltpassword + (s + i).to_bytes(8, byteorder='little', signed=False)
+                                   for i in range(rounds)]))
+                s += rounds
         key = m.digest()[:32]
     return key
 
