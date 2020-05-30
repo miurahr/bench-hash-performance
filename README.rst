@@ -224,6 +224,28 @@ by looping 2^6 times which will be produce 2048 bytes of data when byte length o
 
 When pypy, we can also add 'memoryview' to 'm.update(val)', becomes 'm.update(memoryview(val))'
 
+
+The last example can be rewritten with list comprehension expression and 'b''.join()' for
+bytes concatenation.
+
+The latest resulted code(simplified) is
+
+::
+
+    def calculate_key3(password, cycles, salt):
+        rounds = 1 << 6
+        stages = 1 << (cycles - 6)  # Hash.update() calls 'stages' times
+        m = _hashlib.new('sha256')
+        saltpassword = salt + password
+        s = 0  # 's' is as 'stage * rounds' then '(s + i)' is as same as a 'round' in the original code.
+        for stage in range(stages):
+            m.update(memoryview(b''.join([saltpassword + (s + i).to_bytes(8, byteorder='little', signed=False) for i in range(rounds)])))
+            s += rounds
+        key = m.digest()[:32]
+        return key
+
+
+
 Test results
 ------------
 
