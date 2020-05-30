@@ -204,7 +204,7 @@ Here is an updated target function:
 
 ::
 
-    def calculate_key2(password, cycles, salt):
+    def calculate_key3(password, cycles, salt):
         concat = 1 << 6
         rounds = 1 << cycles
         m = _hashlib.new('sha256')
