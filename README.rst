@@ -1,7 +1,7 @@
-pypy performance test
-=====================
+Improve performance of function which use hash
+==============================================
 
-Test pypy3 performance against ctypes, hashlib and memoryview combination.
+Test performance against ctypes, hashlib and memoryview combination.
 
 Test case
 ---------
