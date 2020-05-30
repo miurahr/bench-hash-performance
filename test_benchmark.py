@@ -1,5 +1,6 @@
 import _hashlib
 import ctypes
+import platform
 
 import pytest
 
@@ -16,7 +17,7 @@ def calculate_key1(password: bytes, cycles: int, salt: bytes, digest: str) -> by
         rounds = 1 << cycles
         m = _hashlib.new(digest)
         for round in range(rounds):
-            m.update(salt + password + round.to_bytes(8, byteorder='little', signed=False))
+            m.update(memoryview(salt + password + round.to_bytes(8, byteorder='little', signed=False)))
         key = m.digest()[:32]
     return key
 
@@ -53,23 +54,40 @@ def calculate_key2(password: bytes, cycles: int, salt: bytes, digest: str):
     return key
 
 
-@pytest.mark.parametrize("password, cycle, salt, expected",
-                         [('secret^&', 0x3f, b'i@#ri#Ildajfdk',
-                           b'i@#ri#Ildajfdks\x00e\x00c\x00r\x00e\x00t\x00^\x00&\x00\x00\x00')
-                          ])
-def test_calculate_key1(password: str, cycle: int, salt: bytes, expected: bytes):
-    key = calculate_key1(password.encode('utf-16LE'), cycle, salt, 'sha256')
-    assert key == expected
-
-
-@pytest.mark.parametrize("password, cycle, salt, expected",
-                         [('secret^&', 0x3f, b'i@#ri#Ildajfdk',
-                           b'i@#ri#Ildajfdks\x00e\x00c\x00r\x00e\x00t\x00^\x00&\x00\x00\x00')
-                          ])
-def test_calculate_key2(password: str, cycle: int, salt: bytes, expected: bytes):
-    key = calculate_key2(password.encode('utf-16LE'), cycle, salt, 'sha256')
-    assert key == expected
-
+def calculate_key3(password: bytes, cycles: int, salt: bytes, digest: str) -> bytes:
+    """Calculate 7zip AES encryption key."""
+    if digest not in ('sha256'):
+        raise ValueError('Unknown digest method for password protection.')
+    assert cycles <= 0x3f
+    if cycles == 0x3f:
+        ba = bytearray(salt + password + bytes(32))
+        key = bytes(ba[:32])  # type: bytes
+    else:
+        cat_cycle = 6
+        rounds = 1 << cycles
+        if cycles > cat_cycle:
+            concat = 1 << cat_cycle
+        else:
+            concat = 1 << cycles
+        m = _hashlib.new(digest)
+        saltpassword = salt + password
+        round = 0
+        if platform.python_implementation() == "PyPy":
+            while round < rounds:
+                val = bytearray()
+                for _ in range(concat):
+                    val += saltpassword + round.to_bytes(8, byteorder='little', signed=False)
+                    round += 1
+                m.update(memoryview(val))
+        else:
+            while round < rounds:
+                val = bytearray()
+                for _ in range(concat):
+                    val += saltpassword + round.to_bytes(8, byteorder='little', signed=False)
+                    round += 1
+                m.update(val)
+        key = m.digest()[:32]
+    return key
 
 @pytest.mark.benchmark
 def test_benchmark_calculate_key1(benchmark):
@@ -90,3 +108,12 @@ def test_benchmark_calculate_key2(benchmark):
     key = benchmark(calculate_key2, password, cycles, salt, 'sha256')
     assert key == expected
 
+
+@pytest.mark.benchmark
+def test_benchmark_calculate_key3(benchmark):
+    password = 'secret'.encode('utf-16LE')
+    cycles = 19
+    salt = b''
+    expected = b'e\x11\xf1Pz<*\x98*\xe6\xde\xf4\xf6X\x18\xedl\xf2Be\x1a\xca\x19\xd1\\\xeb\xc6\xa6z\xe2\x89\x1d'
+    key = benchmark(calculate_key3, password, cycles, salt, 'sha256')
+    assert key == expected

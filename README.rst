@@ -12,9 +12,8 @@ calculate key of 7-zip encryption which uses sha256.
 Test results
 ------------
 
-Mean time of each benchmark conditions.
+Mean time (ms) of each benchmark conditions.
 
-Mean time (ms)
 
 +---------------+-----------------+---------------------------------+
 |  test logic   |   simple        |      ctypes and memoryview      |
