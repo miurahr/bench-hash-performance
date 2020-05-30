@@ -109,14 +109,16 @@ CPython 3.8
 
 ::
 
-      3670016    0.729    0.000    0.729    0.000 {method 'update' of '_hashlib.HASH' objects}
+    ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+    3670016    0.729    0.000    0.729    0.000 {method 'update' of '_hashlib.HASH' objects}
 
 
 CPython 3.6
 
 ::
 
-      3670016    0.842    0.000    0.842    0.000 {method 'update' of '_hashlib.HASH' objects}
+    ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+    3670016    0.842    0.000    0.842    0.000 {method 'update' of '_hashlib.HASH' objects}
 
 
 
@@ -124,16 +126,17 @@ PyPy3.6-7.3.2-alpha
 
 ::
 
-     13631657    8.605    0.000   12.535    0.000 /opt/pypy3/lib_pypy/_ctypes/structure.py:114(__get__)
-     6815757     0.864    0.000    3.966    0.000 /opt/pypy3/lib_pypy/_ctypes/structure.py:130(__set__)
-     6815757     2.515    0.000    2.707    0.000 /opt/pypy3/lib_pypy/_hashlib/__init__.py:58(update)
-     13631657    0.754    0.000    2.052    0.000 /opt/pypy3/lib_pypy/_ctypes/structure.py:287(_subarray)
-     6815913     0.439    0.000    1.797    0.000 /opt/pypy3/lib_pypy/_ctypes/primitive.py:343(from_param)
-     13631501    0.556    0.000    1.581    0.000 /opt/pypy3/lib_pypy/_ctypes/primitive.py:361(_CData_output)
-     6815913     0.717    0.000    1.172    0.000 /opt/pypy3/lib_pypy/_ctypes/primitive.py:379(__init__)
-     13631657    0.902    0.000    0.902    0.000 {method 'fieldaddress' of 'StructureInstanceAutoFree' objects}
-     13631501    0.527    0.000    0.527    0.000 /opt/pypy3/lib_pypy/_ctypes/primitive.py:393(_getvalue)
-     13631501    0.341    0.000    0.498    0.000 /opt/pypy3/lib_pypy/_ctypes/basics.py:71(_CData_output)
+    ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+    13631657    8.605    0.000   12.535    0.000 /opt/pypy3/lib_pypy/_ctypes/structure.py:114(__get__)
+    6815757     0.864    0.000    3.966    0.000 /opt/pypy3/lib_pypy/_ctypes/structure.py:130(__set__)
+    6815757     2.515    0.000    2.707    0.000 /opt/pypy3/lib_pypy/_hashlib/__init__.py:58(update)
+    13631657    0.754    0.000    2.052    0.000 /opt/pypy3/lib_pypy/_ctypes/structure.py:287(_subarray)
+    6815913     0.439    0.000    1.797    0.000 /opt/pypy3/lib_pypy/_ctypes/primitive.py:343(from_param)
+    13631501    0.556    0.000    1.581    0.000 /opt/pypy3/lib_pypy/_ctypes/primitive.py:361(_CData_output)
+    6815913     0.717    0.000    1.172    0.000 /opt/pypy3/lib_pypy/_ctypes/primitive.py:379(__init__)
+    13631657    0.902    0.000    0.902    0.000 {method 'fieldaddress' of 'StructureInstanceAutoFree' objects}
+    13631501    0.527    0.000    0.527    0.000 /opt/pypy3/lib_pypy/_ctypes/primitive.py:393(_getvalue)
+    13631501    0.341    0.000    0.498    0.000 /opt/pypy3/lib_pypy/_ctypes/basics.py:71(_CData_output)
 
 
 In CPython platform, we can successfully remove an overhead of memory copy and dominant bottleneck is
@@ -154,6 +157,7 @@ Here is a result of calculate_key1() on pypy3.
 
 ::
 
+    ncalls  tottime  percall  cumtime  percall filename:lineno(function)
     7864335    2.581    0.000    5.242    0.000 /opt/pypy3/lib_pypy/_hashlib/__init__.py:58(update)
     7864350    2.531    0.000    2.531    0.000 {method 'from_buffer' of 'CompiledFFI' objects}
     7864320    1.325    0.000    1.325    0.000 {method 'to_bytes' of 'int' objects}
@@ -182,16 +186,49 @@ Then we can see a result improve a performance on pypy3.
 
 ::
 
+    ncalls  tottime  percall  cumtime  percall filename:lineno(function)
     8388624    2.505    0.000    3.593    0.000 /opt/pypy3/lib_pypy/_hashlib/__init__.py:58(update)
     8388608    0.992    0.000    0.992    0.000 {method 'to_bytes' of 'int' objects}
     8388640    0.952    0.000    0.952    0.000 {method 'from_buffer' of 'CompiledFFI' objects}
 
 
+What is a first large number of profiling?
+------------------------------------------
+
+A first number of profiling result, 'ncalls', is a number of calls of a specified function.
+When reducing a ncalls, it can perform a better result in total.
+
+Here is another approach; concatenate values first then pass it to Hash.update() in batch.
+
+Here is an updated target function:
+
+::
+
+    def calculate_key2(password, cycles, salt):
+        concat = 1 << 6
+        rounds = 1 << cycles
+        m = _hashlib.new('sha256')
+        saltpassword = salt + password
+        round = 0
+        while round < rounds:
+            val = bytearray()
+            for _ in range(concat):
+                val += saltpassword + round.to_bytes(8, byteorder='little', signed=False)
+                round += 1
+            m.update(val)
+        key = m.digest()[:32]
+        return key
+
+In this example, reduce a loop number to 2^(cycles-6) times and construct an input bytes value
+by looping 2^6 times which will be produce 2048 bytes of data when byte length of password is 12.
+
+When pypy, we can also add 'memoryview' to 'm.update(val)', becomes 'm.update(memoryview(val))'
+
 Test results
 ------------
 
+In many conditions, last case archives a fastest result.
 Mean time (ms) of each benchmark conditions.
-
 
 +---------------+------------+------------------------+-------------------------+
 |  test logic   | simple     | ctypes and memoryview  | concat bytes and update |
