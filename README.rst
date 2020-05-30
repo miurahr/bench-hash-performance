@@ -8,6 +8,15 @@ Test case
 
 calculate key of 7-zip encryption which uses sha256.
 
+How to run a benchmark
+----------------------
+
+::
+
+    $ pip install tox
+    $ tox
+
+
 Target logic to improve
 -----------------------
 
